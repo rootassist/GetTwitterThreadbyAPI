@@ -60,8 +60,9 @@ def main(arg):
 
     cv.df_tweets = pd.DataFrame([[
         tweet_type,
-        tweet_id,data_statuses[0]['user']['name'],
-        data_statuses[0]['user']['screen_name'],
+        tweet_id,
+        data_statuses[0]['user']['name'],
+        '@'+data_statuses[0]['user']['screen_name'],
         level,
         datetime_jst(data_statuses[0]['created_at']),
         data_statuses[0]['full_text']]],
@@ -88,7 +89,7 @@ def main(arg):
                 tweet_type,
                 tweet_id,
                 data_statuses[0]['quoted_status']['user']['name'],
-                data_statuses[0]['quoted_status']['user']['screen_name'],
+                '@'+data_statuses[0]['quoted_status']['user']['screen_name'],
                 level,
                 datetime_jst(data_statuses[0]['quoted_status']['created_at']),
                 data_statuses[0]['quoted_status']['full_text']
@@ -179,6 +180,7 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
         data_statuses = twitter_api(param_str, user_id, cv.find_number)
 
         # 取得した応答を追加
+
         if len(data_statuses) != 0:  #取得したデータがあるなら
             cv.dic_statuses += [dict(**{'res_key': tweet_id},**row) for row in data_statuses]
 
@@ -276,7 +278,29 @@ def twitter_api(param_str, user_id, findnumber):
             tweets_stock_output()
             sys.exit(1)
 
+    #本文テキストの先頭に返信先のIDがあったら、その後ろに改行を追加する
+    data_statuses = add_after_replyid(data_statuses)
+
     return data_statuses
+
+
+def add_after_replyid(mydiclist):
+    import re
+
+    for mydic in mydiclist:
+        full_text = mydic['full_text']
+
+        ptn = r'(^@.+? )(@.+? ){0,}'
+        found_str = re.search(ptn, full_text)
+
+        if found_str:
+            idstrs = re.finditer(ptn, full_text)
+            for idstritem in idstrs:
+                idstr = idstritem.group()
+
+            mydic['full_text'] = idstr+'\n\n'+full_text[len(idstr):]
+
+    return mydiclist
 
 
 def datetime_jst(dt):
