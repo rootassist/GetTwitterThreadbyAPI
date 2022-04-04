@@ -1,15 +1,17 @@
 import urllib
 from requests_oauthlib import OAuth1
+from time import sleep
 import requests
-import os, sys
 import datetime
 import pandas as pd
-from time import sleep
+import os, sys, time
 
 class cv:
     # 検索時のパラメーター
     find_number = 100 # 一回あたりの検索数(最大100/デフォルトは15)
-    lmitdays = 3 # 元ツイートから3日後までのツイートを検索する（遅レスを除く）
+    lmitdays = 3 # 元ツイートから3日後までのツイートを検索する（遅レスを除いて検索数を減らす）
+    # 元ツイートのID
+    basetweet_id = ''
     #出力用配列
     tweets_stock = []
     #応答格納用
@@ -32,7 +34,9 @@ def main(arg):
  
     # ツイートID
     tweet_id = arg
-    # tweet_id = '1456473170014203911' # str型で指定
+    tweet_id = '1458429097386778625' # str型で指定
+
+    cv.basetweet_id = tweet_id
  
     #出力ファイル
     path = os.getcwd()
@@ -48,25 +52,33 @@ def main(arg):
     param_str = 'max_id:'+tweet_id
     param = urllib.parse.quote_plus(param_str)
 
-    url = 'https://api.twitter.com/1.1/search/tweets.json?lang=ja&q='+param+'&count=1&tweet_mode=extended'
-    response = requests.get(url, auth=cv.authtw)
-    cv.request_cnt += 1
-    if response.status_code == 200:
-        data_statuses = response.json()['statuses']
-    elif response.status_code == 429:
-        print('APIの制限オーバーです : 要求数 : %d' % cv.request_cnt)
-        url = 'https://api.twitter.com/1.1/application/rate_limit_status.json?resources=help,users,search,statuses'
+    while True:
+
+        url = 'https://api.twitter.com/1.1/search/tweets.json?lang=ja&q='+param+'&count=1&tweet_mode=extended'
         response = requests.get(url, auth=cv.authtw)
-        api_remaining = response.json()['resources']['search']['/search/tweets']['remaining']
-        api_limit = response.json()['resources']['search']['/search/tweets']['limit']
-        print('アクセス可能回数 : %d, アクセスが可能になるまでの秒数 : %d' % (api_remaining, api_limit))
-        sys.exit(3)
-        # print('15分待ちます')
-        # sleep(15*60) 
-        # request_cnt = 0
-    else:
-        print('APIへの要求が %d で返されました' % response.status_code)
-        sys.exit(1)
+        cv.request_cnt += 1
+        if response.status_code == 200:
+            data_statuses = response.json()['statuses']
+            break
+
+        elif response.status_code == 429:
+            print('APIの制限オーバーです : 要求数 : %d' % cv.request_cnt)
+            url = 'https://api.twitter.com/1.1/application/rate_limit_status.json?resources=help,users,search,statuses'
+            response = requests.get(url, auth=cv.authtw)
+            api_remaining = response.json()['resources']['search']['/search/tweets']['remaining']
+            api_limit = datetime.datetime.fromtimestamp(response.json()['resources']['search']['/search/tweets']['reset'])
+            print('アクセス可能回数 : %d, アクセスが可能になる日時 : %s' % (api_remaining, api_limit))
+            # sys.exit(3)
+            seconds = api_limit - time.mktime(datetime.datetime.now().timetuple())
+            print('%d 秒待ちます' % seconds)
+            time.sleep(seconds + 10)  
+            # print('15分待ちます')
+            # sleep(15*60) 
+            # request_cnt = 0
+
+        else:
+            print('APIへの要求が %d で返されました' % response.status_code)
+            sys.exit(1)
 
     if len(data_statuses) == 0:  #元データがない
         print('元のツイートのデータがありません')
@@ -98,7 +110,8 @@ def main(arg):
     date_max = created_at + datetime.timedelta(days=cv.lmitdays) 
     date_max_str = date_max.strftime('%Y-%m-%d')
 
-    #リツイート元
+    #リツイートの場合、その元ツイートを得る
+
     if data_statuses[0]['is_quote_status']:
 
         tweet_type= 'QuoteRetweetFrom'
@@ -114,24 +127,28 @@ def main(arg):
     search_tweet(level, tweet_id, user_id, data_min_str, date_max_str)
     cv.tweets_stock.append('\n')  # 空行
     
+    #結果出力
     print('ツイート数 : %d' % cv.tweet_cnt)
-
     tweets_stock_output(outputfn)
-
 
 def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
 
     level += 1
 
-    # 返信を得る
+    # 元ツイートへの返信を得る
 
     reply_cnt = 0
 
-    #元ツイートのユーザーへの返信を得る
-    param_str = 'to:'+user_id+' since:'+data_min_str+' until:'+date_max_str \
-        +' since_id:'+tweet_id 
+    # 期間は元ツイートの作成日から+cv.lmitdays まで、ツイートのIDは元ツイートのIDより大きいもの
+    # param_str = 'to:'+user_id+' since:'+data_min_str+' until:'+date_max_str \
+    #     +' since_id:'+cv.basetweet_id 
 
-    #すでに同じUser_idで応答があるときには過去の取得データを利用する
+    # 期間は元ツイートの作成日+cv.lmitdays まで、ツイートのIDは元ツイートのIDより大きいもの
+
+    param_str = 'to:'+user_id+' until:'+date_max_str +' since_id:'+cv.basetweet_id 
+
+    # すでに同じUser_idで検索結果を得ているときにはそれを流用する
+
     if user_id in [row['res_key'] for row in cv.dic_statuses]: 
         data_statuses = [row for row in cv.dic_statuses if row['res_key'] == user_id]
 
@@ -143,30 +160,63 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
                 +param+'&count='+str(cv.find_number)+'&tweet_mode=extended'
             response = requests.get(url, auth=cv.authtw)
             cv.request_cnt += 1
+            
             if response.status_code == 200:
                 data_statuses += response.json()['statuses']
-                if 'next_results' not in response.json()['search_metadata'].keys(): #検索結果の続きがあるときにはそれを得る
+                
+                # 検索結果の続きがあるときにはそれを得る
+                
+                if 'next_results' not in response.json()['search_metadata'].keys(): 
                     break
+
+                # ただし検索結果がfind_number未満のときにはnext_resultsの存在を無視して検索を終了する
+                # (次に検索しても検索結果が0なので検索回数が無駄になる)
+
+                if len(data_statuses) < cv.find_number:
+                    break
+
                 next_results = response.json()['search_metadata']['next_results']
-                param_str = 'to:'+user_id+' since:'+data_min_str+' until:'+date_max_str \
-                    +' max_id:'+urllib.parse.parse_qs(next_results.lstrip('?') )['max_id'][0] # さらに古いものを取得
+                
+                # さらに古いIDのツイートを取得
+                
+                param_str += ' max_id:'+urllib.parse.parse_qs(next_results.lstrip('?') )['max_id'][0] 
+
             elif response.status_code == 429:
+
+                #契約プランでの取得限界
+
                 print('APIの制限オーバーです : 要求数 : %d' % cv.request_cnt)
-                sys.exit(3)
+                url = 'https://api.twitter.com/1.1/application/rate_limit_status.json?resources=help,users,search,statuses'
+                response = requests.get(url, auth=cv.authtw)
+                api_remaining = response.json()['resources']['search']['/search/tweets']['remaining']
+                api_limit = datetime.datetime.fromtimestamp(response.json()['resources']['search']['/search/tweets']['reset'])
+                print('アクセス可能回数 : %d, アクセスが可能になる日時 : %s' % (api_remaining, api_limit))
+                # sys.exit(3)
+                seconds = api_limit - time.mktime(datetime.datetime.now().timetuple())
+                print('%d 秒待ちます' % seconds)
+                time.sleep(seconds + 10)  
                 # print('15分待ちます')
                 # sleep(15*60) 
                 # request_cnt = 0
+
             else:
+                
+                # それ以外のエラー
+                
                 print('APIへの要求が %d で返されました' % response.status_code)
                 sys.exit(1)
         
-        #取得した応答を追加
+        # 取得した応答を追加
+
         if len(data_statuses) != 0:  #取得したデータがあるなら
             cv.dic_statuses += [dict(**{'res_key': user_id},**row) for row in data_statuses]
 
     for tweet in data_statuses:
         if tweet['in_reply_to_status_id_str'] == tweet_id \
-                and same_tweet_not_exist(tweet['id_str']): # 返信先がツイートIDに一致するものを抽出
+                and same_tweet_not_exist(tweet['id_str']):
+            
+            # 返信先が元ツイートのものを抽出する
+            
             user_id = '@'+tweet['user']['screen_name']
 
             tweet_type= 'Reply'
@@ -184,11 +234,19 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
 
     retweet_cnt = 0
 
-    #元ツイートへの引用リツイートを検索
-    param_str = 'url:'+tweet_id+' -filter:retweets'+' since:'+data_min_str+' until:'+date_max_str \
-            +' since_id:'+tweet_id 
+    # 元ツイートへの引用リツイートを検索（元ツイートのツイートIDに対する返信）
+    # 期間は元ツイートの作成日から+cv.lmitdays まで、ツイートのIDは元ツイートのIDより大きいもの
 
-    #すでに同じtweet_idで応答があるときには過去の取得データを利用する
+    # param_str = 'url:'+tweet_id+' -filter:retweets'+' since:'+data_min_str+' until:'+date_max_str \
+    #         +' since_id:'+cv.basetweet_id  
+
+    # 元ツイートへの引用リツイートを検索（元ツイートのツイートIDに対する返信）
+    # 期間は元ツイートの作成日+cv.lmitdays まで、ツイートのIDは元ツイートのIDより大きいもの
+
+    param_str = 'url:'+tweet_id+' -filter:retweets'+' until:'+date_max_str +' since_id:'+cv.basetweet_id  
+
+    # すでに同じtweet_idで検索結果を得ているときにはそれを流用する
+
     if tweet_id in [row['res_key'] for row in cv.dic_statuses]: 
         data_statuses = [row for row in cv.dic_statuses  if row['res_key'] == tweet_id]
     
@@ -200,30 +258,61 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
                 +param+'&count='+str(cv.find_number)+'&tweet_mode=extended'
             response = requests.get(url, auth=cv.authtw)
             cv.request_cnt += 1
+
             if response.status_code == 200:
                 data_statuses += response.json()['statuses']
+
                 #検索結果の続きがあるときにはそれを得る
+
                 if 'next_results' not in response.json()['search_metadata'].keys(): 
                     break
+
+                # ただし検索結果がfind_number未満のときにはnext_resultsの存在を無視して検索を終了する
+                # (次に検索しても検索結果が0なので検索回数が無駄になる)
+
+                if len(data_statuses) < cv.find_number:
+                    break
+
                 next_results = response.json()['search_metadata']['next_results']
-                param_str = 'url:'+tweet_id+' -filter:retweets'+' since:'+data_min_str+' until:'+date_max_str \
-                    +' max_id:'+urllib.parse.parse_qs(next_results.lstrip('?') )['max_id'][0] # さらに古いものを取得
+
+                # さらに古いIDのツイートを取得
+
+                param_str += ' max_id:'+urllib.parse.parse_qs(next_results.lstrip('?') )['max_id'][0] # さらに古いものを取得
+
             elif response.status_code == 429:
+
+                #契約プランでの取得限界
+
                 print('APIの制限オーバーです : 要求数 : %d' % cv.request_cnt)
-                sys.exit(3)
-                # print('15分待ちます')
+                url = 'https://api.twitter.com/1.1/application/rate_limit_status.json?resources=help,users,search,statuses'
+                response = requests.get(url, auth=cv.authtw)
+                api_remaining = response.json()['resources']['search']['/search/tweets']['remaining']
+                api_limit = response.json()['resources']['search']['/search/tweets']['reset']
+                api_limit_str = datetime.datetime.fromtimestamp(api_limit)
+                print('アクセス可能回数 : %d, アクセスが可能になる日時 : %s' % (api_remaining, api_limit_str))
+                #sys.exit(3)
+                seconds = api_limit - time.mktime(datetime.datetime.now().timetuple())
+                print('%d 秒待ちます' % seconds)
+                time.sleep(seconds + 10)  
                 # sleep(15*60) 
                 # request_cnt = 0
+            
             else:
+
+                # それ以外のエラー
+
                 print('APIへの要求が %d で返されました' % response.status_code)
                 sys.exit(1)
 
-            #取得した応答を追加
-            if len(data_statuses) != 0:  #取得したデータがあるなら
-                cv.dic_statuses += [dict(**{'res_key': tweet_id},**row) for row in data_statuses]
+        #取得した応答を追加
+
+        if len(data_statuses) != 0:  #取得したデータがあるなら
+            cv.dic_statuses += [dict(**{'res_key': tweet_id},**row) for row in data_statuses]
 
     for tweet in data_statuses:
+
         # 引用リツイート先がツイートIDに一致するものを抽出
+
         if tweet['is_quote_status'] \
                 and  tweet['quoted_status']['id_str'] == tweet_id \
                 and same_tweet_not_exist(tweet['id_str']): 
