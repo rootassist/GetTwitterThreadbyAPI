@@ -9,14 +9,14 @@ import os, sys, time
 class cv:
     # 検索時のパラメーター
     find_number = 100 # 一回あたりの検索数(最大100/デフォルトは15)
-    lmitdays = 3 # 元ツイートから3日後までのツイートを検索する（遅レスを除いて検索数を減らす）
+    lmitdays = 4 # 元ツイートから4日後までのツイートを検索する（遅レスを除いて検索数を減らす）
     # 元ツイートのID
     basetweet_id = ''
     #出力用配列
-    tweets_stock = []
+    # tweets_stock = []
     tweets_output = []
     #出力用DataFrame
-    df_weets = []
+    df_tweets = []
     #応答格納用
     dic_statuses = []
     #ツイート数
@@ -37,7 +37,7 @@ def main(arg):
  
     # ツイートID
     tweet_id = arg
-    tweet_id = '1463299258279358469' # str型で指定 デバッグ用
+    #tweet_id = '1474177148546318338' # str型で指定 デバッグ用
 
     cv.basetweet_id = tweet_id
  
@@ -46,7 +46,7 @@ def main(arg):
     dt_now = datetime.datetime.now()
     dt = dt_now.strftime('%Y%m%d%H%M%S')
     outputfn = path+'\TwitterAPISerchID_'+dt+'.txt'
-    outputfn2 = path+'\TwitterAPISerchID_'+dt+'_2.txt'
+    # outputfn2 = path+'\TwitterAPISerchID_'+dt+'_2.txt'
 
     #階層レベル
     level = 0
@@ -56,14 +56,17 @@ def main(arg):
     param_str = 'max_id:'+tweet_id
 
     data_statuses = twitter_api(param_str, '<BaseTweet>', 1)
+    # 取得した応答を追加
+    if len(data_statuses) != 0:  #取得したデータがあるなら
+        cv.dic_statuses += [dict(**{'res_key': '<BaseTweet>'},**row) for row in data_statuses]
 
     tweet_type= 'OriginalTweet'
-    tweet_stock_append(tweet_type, tweet_id, data_statuses[0]['id_str'], \
-        data_statuses[0]['user']['name'], data_statuses[0]['user']['screen_name'], \
-        level, data_statuses[0]['created_at'], data_statuses[0]['full_text'])
-    cv.tweet_cnt += 1
 
-    cv.df_weets = pd.DataFrame([[
+    # tweet_stock_append(tweet_type, tweet_id, data_statuses[0]['id_str'], \
+    #     data_statuses[0]['user']['name'], data_statuses[0]['user']['screen_name'], \
+    #     level, data_statuses[0]['created_at'], data_statuses[0]['full_text'])
+
+    cv.df_tweets = pd.DataFrame([[
         tweet_type,
         tweet_id,data_statuses[0]['user']['name'],
         data_statuses[0]['user']['screen_name'],
@@ -73,7 +76,9 @@ def main(arg):
         columns=['tweet_type','ref_tweet_id','user_name','user_id','level','created_at','tweet_text'],
         index=[data_statuses[0]['id_str']]
     )
-    
+
+    cv.tweet_cnt += 1
+
     #検索期間の設定
     created_at = datetime.datetime.strptime(data_statuses[0]['created_at'], '%a %b %d %H:%M:%S %z %Y')
     data_min_str = created_at.strftime('%Y-%m-%d')
@@ -85,11 +90,12 @@ def main(arg):
     if data_statuses[0]['is_quote_status']:
 
         tweet_type= 'QuoteRetweetFrom'
-        tweet_stock_append(tweet_type, tweet_id, data_statuses[0]['quoted_status']['id_str'], \
-            data_statuses[0]['quoted_status']['user']['name'], data_statuses[0]['quoted_status']['user']['screen_name'], \
-            level, data_statuses[0]['quoted_status']['created_at'], data_statuses[0]['quoted_status']['full_text'])
 
-        cv.df_weets.loc[data_statuses[0]['quoted_status']['id_str']]=[
+        # tweet_stock_append(tweet_type, tweet_id, data_statuses[0]['quoted_status']['id_str'], \
+        #     data_statuses[0]['quoted_status']['user']['name'], data_statuses[0]['quoted_status']['user']['screen_name'], \
+        #     level, data_statuses[0]['quoted_status']['created_at'], data_statuses[0]['quoted_status']['full_text'])
+
+        cv.df_tweets.loc[data_statuses[0]['quoted_status']['id_str']]=[
                 tweet_type,
                 tweet_id,
                 data_statuses[0]['quoted_status']['user']['name'],
@@ -106,11 +112,12 @@ def main(arg):
     # ツイート検索・リプライの抽出
     #tweets = cv.tweets_stock
     search_tweet(level, tweet_id, user_id, data_min_str, date_max_str)
-    cv.tweets_stock.append('\n')  # 空行
+    #cv.tweets_stock.append('\n')  # 空行
     
     #結果出力
     print('ツイート数 : %d' % cv.tweet_cnt)
-    tweets_stock_output(outputfn, outputfn2)
+    # tweets_stock_output(outputfn, outputfn2)
+    tweets_stock_output(outputfn)
 
 
 def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
@@ -131,6 +138,9 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
 
     else:
         data_statuses = twitter_api(param_str, user_id, cv.find_number)
+        # 取得した応答を追加
+        if len(data_statuses) != 0:  #取得したデータがあるなら
+            cv.dic_statuses += [dict(**{'res_key': user_id},**row) for row in data_statuses]
 
     for tweet in data_statuses:
         if tweet['in_reply_to_status_id_str'] == tweet_id \
@@ -141,10 +151,11 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
             user_id = '@'+tweet['user']['screen_name']
 
             tweet_type= 'Reply'
-            tweet_stock_append(tweet_type, tweet_id, tweet['id_str'], \
-                tweet['user']['name'], user_id, level, tweet['created_at'], tweet['full_text'])
 
-            cv.df_weets.loc[tweet['id_str']]=[
+            # tweet_stock_append(tweet_type, tweet_id, tweet['id_str'], \
+            #     tweet['user']['name'], user_id, level, tweet['created_at'], tweet['full_text'])
+
+            cv.df_tweets.loc[tweet['id_str']]=[
                     tweet_type,
                     tweet_id,
                     tweet['user']['name'],
@@ -179,6 +190,9 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
     
     else:
         data_statuses = twitter_api(param_str, user_id, cv.find_number)
+        # 取得した応答を追加
+        if len(data_statuses) != 0:  #取得したデータがあるなら
+            cv.dic_statuses += [dict(**{'res_key': tweet_id},**row) for row in data_statuses]
 
     for tweet in data_statuses:
 
@@ -191,11 +205,12 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
             user_id = '@'+tweet['user']['screen_name']
             
             tweet_type= 'QuoteRetweetTo'
-            tweet_stock_append(tweet_type, tweet_id, tweet['id_str'], \
-                tweet['user']['name'], user_id, \
-                level, tweet['created_at'], tweet['full_text'])
 
-            cv.df_weets.loc[tweet['id_str']]=[
+            # tweet_stock_append(tweet_type, tweet_id, tweet['id_str'], \
+            #     tweet['user']['name'], user_id, \
+            #     level, tweet['created_at'], tweet['full_text'])
+
+            cv.df_tweets.loc[tweet['id_str']]=[
                     tweet_type,
                     tweet_id,
                     tweet['user']['name'],
@@ -273,44 +288,38 @@ def twitter_api(param_str, user_id, findnumber):
             print('APIへの要求が %d で返されました' % response.status_code)
             sys.exit(1)
     
-    # 取得した応答を追加
-
-    if len(data_statuses) != 0:  #取得したデータがあるなら
-
-        cv.dic_statuses += [dict(**{'res_key': user_id},**row) for row in data_statuses]
-
     return data_statuses
 
 
-def tweet_stock_append(tweet_type, ref_tweet_id, tweet_id, \
-        user_name, user_id, level, created_at, tweet_text):
+# def tweet_stock_append(tweet_type, ref_tweet_id, tweet_id, \
+#         user_name, user_id, level, created_at, tweet_text):
 
-    if tweet_type == 'OriginalTweet':
-        delimit_str = '■■■■■'
-    elif tweet_type == 'QuoteRetweetFrom':
-        delimit_str = '▲▲▲▲▲'
-    elif tweet_type == 'Reply':
-        delimit_str = '▼▼▼▼▼'
-    elif tweet_type == 'QuoteRetweetTo':
-        delimit_str = '▽▽▽▽▽'
-    else:
-        return
+#     if tweet_type == 'OriginalTweet':
+#         delimit_str = '■■■■■'
+#     elif tweet_type == 'QuoteRetweetFrom':
+#         delimit_str = '▲▲▲▲▲'
+#     elif tweet_type == 'Reply':
+#         delimit_str = '▼▼▼▼▼'
+#     elif tweet_type == 'QuoteRetweetTo':
+#         delimit_str = '▽▽▽▽▽'
+#     else:
+#         return
     
-    cv.tweets_stock.append('\n')  # 空行
-    cv.tweets_stock.append(delimit_str+ref_tweet_id+delimit_str+tweet_id+delimit_str+str(level)+'\n')  # デリミタ
-    cv.tweets_stock.append('\n')  # 空行
-    cv.tweets_stock.append(user_name+user_id+'\n')  # 表示名
-    created_at = datetime.datetime.strptime(created_at, '%a %b %d %H:%M:%S %z %Y')
-    created_at_jst = created_at + datetime.timedelta(hours=9) # JST
-    created_at_str = created_at_jst.strftime('%Y-%m-%d %H:%M:%S')
-    cv.tweets_stock.append(created_at_str+'\n')  # ツイート日時
-    cv.tweets_stock.append('\n')  # 空行
-    cv.tweets_stock.append(tweet_text+'\n')  # ツイート内容
+#     cv.tweets_stock.append('\n')  # 空行
+#     cv.tweets_stock.append(delimit_str+ref_tweet_id+delimit_str+tweet_id+delimit_str+str(level)+'\n')  # デリミタ
+#     cv.tweets_stock.append('\n')  # 空行
+#     cv.tweets_stock.append(user_name+user_id+'\n')  # 表示名
+#     created_at = datetime.datetime.strptime(created_at, '%a %b %d %H:%M:%S %z %Y')
+#     created_at_jst = created_at + datetime.timedelta(hours=9) # JST
+#     created_at_str = created_at_jst.strftime('%Y-%m-%d %H:%M:%S')
+#     cv.tweets_stock.append(created_at_str+'\n')  # ツイート日時
+#     cv.tweets_stock.append('\n')  # 空行
+#     cv.tweets_stock.append(tweet_text+'\n')  # ツイート内容
 
 
 def df_tweet_output():
     
-    for row in cv.df_weets.itertuples():
+    for row in cv.df_tweets.itertuples():
 
         if row.tweet_type == 'OriginalTweet':
             delimit_str = '■■■■■'
@@ -342,21 +351,29 @@ def datetime_jst(dt):
 
 def same_tweet_not_exist(chkstr):
 
+    # rtn = True
+    # for tweet in cv.tweets_stock:
+    #     if len(tweet) > 52 and tweet[29:48] == chkstr:
+    #         rtn = False
+    #         print('ID : %s はすでにあります' % chkstr)
+    #         break
+    # return rtn
+
     rtn = True
-    for tweet in cv.tweets_stock:
-        if len(tweet) > 52 and tweet[29:48] == chkstr:
-            rtn = False
-            print('ID : %s はすでにあります' % chkstr)
-            break
+    if chkstr in cv.df_tweets:
+        rtn = False
+        print('ID : %s はすでにあります' % chkstr)
+
     return rtn
 
 
-def tweets_stock_output(outputfn, outputfn2):
+# def tweets_stock_output(outputfn, outputfn2):
+def tweets_stock_output(outputfn):
 
-    for tweet in cv.tweets_stock:
-        print(tweet)
+    # for tweet in cv.tweets_stock:
+    #     print(tweet)
 
-    print(cv.df_weets)
+    print(cv.df_tweets)
 
     df_tweet_output()
 
@@ -369,10 +386,10 @@ def tweets_stock_output(outputfn, outputfn2):
     f.close()
     print('出力ファイル名 : %s' % outputfn)
 
-    f = open(outputfn2,'a', encoding='UTF-8')
-    f.writelines(cv.tweets_stock)
-    f.close()
-    print('出力ファイル名 : %s' % outputfn2)
+    # f = open(outputfn2,'a', encoding='UTF-8')
+    # f.writelines(cv.tweets_stock)
+    # f.close()
+    # print('出力ファイル名 : %s' % outputfn2)
 
 if __name__ == '__main__':
 
