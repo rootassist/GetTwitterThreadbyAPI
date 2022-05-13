@@ -262,11 +262,16 @@ def twitter_api(param_str, user_id, findnumber):
             # sys.exit(3)
             seconds = response.json()['resources']['search']['/search/tweets']['reset']  - int(time.mktime(datetime.datetime.now().timetuple()))
             print('%d 秒待ちます' % seconds)
-            time.sleep(seconds + 10)
-            # print('15分待ちます')
-            # sleep(15*60)
-            # request_cnt = 0
 
+            #スリープ対策として60秒ごとに現在時刻と再開目標時刻と比較する
+
+            targettime = time.time() + seconds + 10
+            while True:
+                time.sleep(60)
+                nowtime = time.time()
+                if nowtime > targettime:
+                    break
+            
         else:
 
             # それ以外のエラー
@@ -279,6 +284,7 @@ def twitter_api(param_str, user_id, findnumber):
             sys.exit(1)
 
     #本文テキストの先頭に返信先のIDがあったら、その後ろに改行を追加する
+
     data_statuses = add_after_replyid(data_statuses)
 
     return data_statuses
@@ -324,9 +330,6 @@ def tweets_stock_output():
     print(cv.df_tweets)
 
     df_tweet_output()
-
-    #for tweet in cv.tweets_output:
-    #    print(tweet)
 
     #出力ファイル名
 
