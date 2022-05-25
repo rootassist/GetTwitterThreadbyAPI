@@ -6,11 +6,27 @@ import datetime
 import pandas as pd
 import os, sys, time
 
-class cv:
 
+class ParamValues:
+    
     # 検索時のパラメーター
     find_number = 100 # 一回あたりの検索数(最大100/デフォルトは15)
     lmitdays = 4 # 元ツイートから4日後までのツイートを検索する（遅レスを除いて検索数を減らす）
+    
+    #認証情報
+    authtw = None
+  
+
+class CounterValues:
+    
+    #ツイート数
+    tweet_cnt = 0
+    #要求数
+    request_cnt = 0
+
+
+class TweetInfo:
+
     # 元ツイートのID
     basetweet_id = ''
     #出力用配列
@@ -20,27 +36,15 @@ class cv:
     df_tweets = []
     #応答格納用
     dic_statuses = []
-    #ツイート数
-    tweet_cnt = 0
-    #要求数
-    request_cnt = 0
-    #認証情報
-    authtw = None
+    
+    
+def main(tweet_id, CK, CKS, AT, ATS):
 
-def main(arg):
-
-    # APIの秘密鍵
-    CK = os.environ['TW_CONSUMER_KEY'] # コンシューマーキー
-    CKS = os.environ['TW_CONSUMER_SECRET'] # コンシューマーシークレット
-    AT = os.environ['TW_ACCESS_TOKEN_KEY'] # アクセストークン
-    ATS = os.environ['TW_ACCESS_TOKEN_SECRET'] # アクセストークンシークレット
-    cv.authtw = OAuth1(CK, CKS, AT, ATS)
+    # 認証情報
+    ParamValues.authtw = OAuth1(CK, CKS, AT, ATS)
 
     # ツイートID
-    tweet_id = arg
-    #tweet_id = '' # str型で指定 デバッグ用
-
-    cv.basetweet_id = tweet_id
+    TweetInfo.basetweet_id = tweet_id
 
     #階層レベル
     level = 0
@@ -54,11 +58,11 @@ def main(arg):
     # 取得した応答を追加
 
     if len(data_statuses) != 0:  #取得したデータがあるなら
-        cv.dic_statuses += [dict(**{'res_key': '<BaseTweet>'},**row) for row in data_statuses]
+        TweetInfo.dic_statuses += [dict(**{'res_key': '<BaseTweet>'},**row) for row in data_statuses]
 
     tweet_type= 'OriginalTweet'
 
-    cv.df_tweets = pd.DataFrame([[
+    TweetInfo.df_tweets = pd.DataFrame([[
         tweet_type,
         tweet_id,
         data_statuses[0]['user']['name'],
@@ -70,13 +74,13 @@ def main(arg):
         index=[data_statuses[0]['id_str']]
     )
 
-    cv.tweet_cnt += 1
+    CounterValues.tweet_cnt += 1
 
     #検索期間の設定
 
     created_at = datetime.datetime.strptime(data_statuses[0]['created_at'], '%a %b %d %H:%M:%S %z %Y')
     data_min_str = created_at.strftime('%Y-%m-%d')
-    date_max = created_at + datetime.timedelta(days=cv.lmitdays)
+    date_max = created_at + datetime.timedelta(days=ParamValues.lmitdays)
     date_max_str = date_max.strftime('%Y-%m-%d')
 
     #リツイートの場合、その元ツイートを得る
@@ -85,7 +89,7 @@ def main(arg):
 
         tweet_type= 'QuoteRetweetFrom'
 
-        cv.df_tweets.loc[data_statuses[0]['quoted_status']['id_str']]=[
+        TweetInfo.df_tweets.loc[data_statuses[0]['quoted_status']['id_str']]=[
                 tweet_type,
                 tweet_id,
                 data_statuses[0]['quoted_status']['user']['name'],
@@ -95,7 +99,7 @@ def main(arg):
                 data_statuses[0]['quoted_status']['full_text']
         ]
 
-        cv.tweet_cnt += 1
+        CounterValues.tweet_cnt += 1
 
     user_id = '@'+data_statuses[0]['user']['screen_name']  #元ツイートのユーザー名
 
@@ -105,7 +109,7 @@ def main(arg):
 
     #結果出力
 
-    print('ツイート数 : %d' % cv.tweet_cnt)
+    print('ツイート数 : %d' % CounterValues.tweet_cnt)
     tweets_stock_output()
 
 
@@ -117,21 +121,21 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
 
     reply_cnt = 0
 
-    param_str = 'to:'+user_id+' until:'+date_max_str +' since_id:'+cv.basetweet_id
+    param_str = 'to:'+user_id+' until:'+date_max_str +' since_id:'+TweetInfo.basetweet_id
 
     # すでに同じUser_idで検索結果を得ているときにはそれを流用する
     # なければTwitter APIを呼び出し
 
-    if user_id in [row['res_key'] for row in cv.dic_statuses]:
-        data_statuses = [row for row in cv.dic_statuses if row['res_key'] == user_id]
+    if user_id in [row['res_key'] for row in TweetInfo.dic_statuses]:
+        data_statuses = [row for row in TweetInfo.dic_statuses if row['res_key'] == user_id]
 
     else:
-        data_statuses = twitter_api(param_str, user_id, cv.find_number)
+        data_statuses = twitter_api(param_str, user_id, ParamValues.find_number)
 
         # 取得した応答を追加
 
         if len(data_statuses) != 0:  #取得したデータがあるなら
-            cv.dic_statuses += [dict(**{'res_key': user_id},**row) for row in data_statuses]
+            TweetInfo.dic_statuses += [dict(**{'res_key': user_id},**row) for row in data_statuses]
 
     for tweet in data_statuses:
         if tweet['in_reply_to_status_id_str'] == tweet_id \
@@ -143,7 +147,7 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
 
             tweet_type= 'Reply'
 
-            cv.df_tweets.loc[tweet['id_str']]=[
+            TweetInfo.df_tweets.loc[tweet['id_str']]=[
                     tweet_type,
                     tweet_id,
                     tweet['user']['name'],
@@ -153,36 +157,36 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
                     tweet['full_text']
             ]
 
-            cv.tweet_cnt += 1
+            CounterValues.tweet_cnt += 1
 
             level_s = level
             search_tweet(level_s, tweet['id_str'], user_id, data_min_str, date_max_str) #再帰呼び出し
             reply_cnt += 1
 
-    print('ID : %s, リプライ数 : %d, 要求数 : %d' % (tweet_id, reply_cnt, cv.request_cnt))
+    print('ID : %s, リプライ数 : %d, 要求数 : %d' % (tweet_id, reply_cnt, CounterValues.request_cnt))
 
     # リツイートを得る
 
     retweet_cnt = 0
 
     # 元ツイートへの引用リツイートを検索（元ツイートのツイートIDに対する返信）
-    # 期間は元ツイートの作成日+cv.lmitdays まで、ツイートのIDは元ツイートのIDより大きいもの
+    # 期間は元ツイートの作成日+ParamValues.lmitdays まで、ツイートのIDは元ツイートのIDより大きいもの
 
-    param_str = 'url:'+tweet_id+' -filter:retweets'+' until:'+date_max_str +' since_id:'+cv.basetweet_id
+    param_str = 'url:'+tweet_id+' -filter:retweets'+' until:'+date_max_str +' since_id:'+TweetInfo.basetweet_id
 
     # すでに同じtweet_idで検索結果を得ているときにはそれを流用する
     # なければTwitter APIを呼び出し
 
-    if tweet_id in [row['res_key'] for row in cv.dic_statuses]:
-        data_statuses = [row for row in cv.dic_statuses  if row['res_key'] == tweet_id]
+    if tweet_id in [row['res_key'] for row in TweetInfo.dic_statuses]:
+        data_statuses = [row for row in TweetInfo.dic_statuses  if row['res_key'] == tweet_id]
 
     else:
-        data_statuses = twitter_api(param_str, user_id, cv.find_number)
+        data_statuses = twitter_api(param_str, user_id, ParamValues.find_number)
 
         # 取得した応答を追加
 
         if len(data_statuses) != 0:  #取得したデータがあるなら
-            cv.dic_statuses += [dict(**{'res_key': tweet_id},**row) for row in data_statuses]
+            TweetInfo.dic_statuses += [dict(**{'res_key': tweet_id},**row) for row in data_statuses]
 
     for tweet in data_statuses:
 
@@ -196,7 +200,7 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
 
             tweet_type= 'QuoteRetweetTo'
 
-            cv.df_tweets.loc[tweet['id_str']]=[
+            TweetInfo.df_tweets.loc[tweet['id_str']]=[
                     tweet_type,
                     tweet_id,
                     tweet['user']['name'],
@@ -206,14 +210,14 @@ def search_tweet(level, tweet_id, user_id, data_min_str, date_max_str):
                     tweet['full_text']
             ]
 
-            cv.tweet_cnt += 1
+            CounterValues.tweet_cnt += 1
 
             level_s = level
             search_tweet(level_s, tweet['id_str'], user_id, \
                 data_min_str, date_max_str) #再帰呼び出し
             retweet_cnt += 1
 
-    print('ID : %s, 引用リツイート数 : %d, 要求数 : %d' % (tweet_id, retweet_cnt, cv.request_cnt))
+    print('ID : %s, 引用リツイート数 : %d, 要求数 : %d' % (tweet_id, retweet_cnt, CounterValues.request_cnt))
 
 
 def twitter_api(param_str, user_id, findnumber):
@@ -224,8 +228,8 @@ def twitter_api(param_str, user_id, findnumber):
         param = urllib.parse.quote_plus(param_str)
         url = 'https://api.twitter.com/1.1/search/tweets.json?lang=ja&q='\
             +param+'&count='+str(findnumber)+'&tweet_mode=extended'
-        response = requests.get(url, auth=cv.authtw)
-        cv.request_cnt += 1
+        response = requests.get(url, auth=ParamValues.authtw)
+        CounterValues.request_cnt += 1
 
         if response.status_code == 200:
 
@@ -253,9 +257,9 @@ def twitter_api(param_str, user_id, findnumber):
 
             #契約プランでの取得限界
 
-            print('APIの制限オーバーです : 要求数 : %d' % cv.request_cnt)
+            print('APIの制限オーバーです : 要求数 : %d' % CounterValues.request_cnt)
             url = 'https://api.twitter.com/1.1/application/rate_limit_status.json?resources=help,users,search,statuses'
-            response = requests.get(url, auth=cv.authtw)
+            response = requests.get(url, auth=ParamValues.authtw)
             api_remaining = response.json()['resources']['search']['/search/tweets']['remaining']
             api_limit = datetime.datetime.fromtimestamp(response.json()['resources']['search']['/search/tweets']['reset'])
             print('アクセス可能回数 : %d, アクセスが可能になる日時 : %s' % (api_remaining, api_limit))
@@ -318,7 +322,7 @@ def datetime_jst(dt):
 def same_tweet_not_exist(chkstr):
 
     rtn = True
-    if chkstr in cv.df_tweets:
+    if chkstr in TweetInfo.df_tweets:
         rtn = False
         print('ID : %s はすでにあります' % chkstr)
 
@@ -327,7 +331,7 @@ def same_tweet_not_exist(chkstr):
 
 def tweets_stock_output():
 
-    print(cv.df_tweets)
+    print(TweetInfo.df_tweets)
 
     df_tweet_output()
 
@@ -336,17 +340,17 @@ def tweets_stock_output():
     path = os.getcwd()
     dt_now = datetime.datetime.now()
     dt = dt_now.strftime('%Y%m%d%H%M%S')
-    outputfn = path+'\TwitterAPISearchID_'+cv.basetweet_id+'_'+dt+'.txt'
-    outputfnjson = path+'\TwitterAPISearchID_'+cv.basetweet_id+'_'+dt+'.json'
+    outputfn = path+'\TwitterAPISearchID_'+TweetInfo.basetweet_id+'_'+dt+'.txt'
+    outputfnjson = path+'\TwitterAPISearchID_'+TweetInfo.basetweet_id+'_'+dt+'.json'
 
     #ファイル出力
 
     f = open(outputfn,'a', encoding='UTF-8')
-    f.writelines(cv.tweets_output)
+    f.writelines(TweetInfo.tweets_output)
     f.close()
     print('出力ファイル名 : %s' % outputfn)
 
-    buf = cv.df_tweets.to_json(force_ascii=False, \
+    buf = TweetInfo.df_tweets.to_json(force_ascii=False, \
             orient='index', indent=4, double_precision=15)
     with open(outputfnjson, 'wt', encoding='UTF-8') as f:
         f.write(buf)
@@ -355,7 +359,7 @@ def tweets_stock_output():
 
 def df_tweet_output():
 
-    for row in cv.df_tweets.itertuples():
+    for row in TweetInfo.df_tweets.itertuples():
 
         if row.tweet_type == 'OriginalTweet':
             delimit_str = '■■■■■'
@@ -368,13 +372,13 @@ def df_tweet_output():
         else:
             return
 
-        cv.tweets_output.append('\n')  # 空行
-        cv.tweets_output.append(delimit_str+row.ref_tweet_id+delimit_str+row.Index+delimit_str+str(row.level)+'\n')  # デリミタ
-        cv.tweets_output.append('\n')  # 空行
-        cv.tweets_output.append(row.user_name+row.user_id+'\n')  # 表示名
-        cv.tweets_output.append(row.created_at+'\n')  # ツイート日時
-        cv.tweets_output.append('\n')  # 空行
-        cv.tweets_output.append(row.tweet_text+'\n')  # ツイート内容
+        TweetInfo.tweets_output.append('\n')  # 空行
+        TweetInfo.tweets_output.append(delimit_str+row.ref_tweet_id+delimit_str+row.Index+delimit_str+str(row.level)+'\n')  # デリミタ
+        TweetInfo.tweets_output.append('\n')  # 空行
+        TweetInfo.tweets_output.append(row.user_name+row.user_id+'\n')  # 表示名
+        TweetInfo.tweets_output.append(row.created_at+'\n')  # ツイート日時
+        TweetInfo.tweets_output.append('\n')  # 空行
+        TweetInfo.tweets_output.append(row.tweet_text+'\n')  # ツイート内容
 
     return
 
@@ -382,8 +386,21 @@ def df_tweet_output():
 if __name__ == '__main__':
 
     args = sys.argv
+    
     if 2<= len(args):
-        main(str(args[1]))
+        
+        # APIの秘密鍵
+        CK = os.environ['TW_CONSUMER_KEY'] # コンシューマーキー
+        CKS = os.environ['TW_CONSUMER_SECRET'] # コンシューマーシークレット
+        AT = os.environ['TW_ACCESS_TOKEN_KEY'] # アクセストークン
+        ATS = os.environ['TW_ACCESS_TOKEN_SECRET'] # アクセストークンシークレット
+        
+        # 検索するツイッターのID
+        SearchTweetID = str(args[1])
+        #SearchTweetID = '' # str型で指定 デバッグ用
+        
+        main(SearchTweetID, CK, CKS, AT, ATS)
+
     else:
         print('Argument should be Twitter ID')
 
