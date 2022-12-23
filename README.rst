@@ -12,6 +12,7 @@ Overview
 Description
 =====================
 ツイートのTwitter IDあるいはURLを指定すると、Twitter API 1.1を利用してそのツイートの返信、および引用ツイートを追跡し、結果をテキストとjsonで出力します  
+
 Twitter APIで取得ツイートの制限が越えた場合には一定の待ち時間のあと取得を再開し、最終的にすべてのスレッドが取得できるまで継続します  
 
 pythonは以下のバージョンで動作確認しています(動作確認はWindowsでしか行っていません)
@@ -25,11 +26,11 @@ pythonは以下のバージョンで動作確認しています(動作確認はW
 Usage
 =====================
 
-- 事前に以下の環境変数へAPIの認証情報を設定して下さい
-  TW_CONSUMER_KEY # コンシューマーキー
-  TW_CONSUMER_SECRET # コンシューマーシークレット
-  TW_ACCESS_TOKEN_KEY # アクセストークン
-  TW_ACCESS_TOKEN_SECRET # アクセストークンシークレット
+- 事前に以下の環境変数へAPIの認証情報を設定して下さい  
+  -- TW_CONSUMER_KEY # コンシューマーキー
+  -- TW_CONSUMER_SECRET # コンシューマーシークレット
+  -- TW_ACCESS_TOKEN_KEY # アクセストークン
+  -- TW_ACCESS_TOKEN_SECRET # アクセストークンシークレット
 - 引数にツイートのTwitter IDあるいはURLを指定して下さい  
   python GetTwitterThreadbyAPI.py  
 - 処理中には経過が出力されます
