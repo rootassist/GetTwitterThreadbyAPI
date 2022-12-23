@@ -386,21 +386,31 @@ def df_tweet_output():
 if __name__ == '__main__':
 
     args = sys.argv
-    
-    if 2<= len(args):
-        
-        # APIの秘密鍵
-        CK = os.environ['TW_CONSUMER_KEY'] # コンシューマーキー
-        CKS = os.environ['TW_CONSUMER_SECRET'] # コンシューマーシークレット
-        AT = os.environ['TW_ACCESS_TOKEN_KEY'] # アクセストークン
-        ATS = os.environ['TW_ACCESS_TOKEN_SECRET'] # アクセストークンシークレット
-        
-        # 検索するツイッターのID
-        SearchTweetID = str(args[1])
-        #SearchTweetID = '' # str型で指定 デバッグ用
-        
-        main(SearchTweetID, CK, CKS, AT, ATS)
+
+    if 2 != len(args):
+        print('No argument specified')
 
     else:
-        print('Argument should be Twitter ID')
+        # 検索するツイッターのID
+        argstr = str(args[1])
 
+        # 引数に指定されているのがTwitter IDかURLでなければエラー
+        SearchTweetID = ''
+        if len(argstr) == 19 and argstr.isdecimal():
+            SearchTweetID = argstr
+        elif len(argstr) > 19 and argstr[-20] == '/' \
+          and argstr[0:4] == 'http' and argstr[-19:].isdecimal():
+            SearchTweetID = argstr[-19:]
+        if SearchTweetID == '':            
+            print('Argument should be Twitter ID or URL')
+
+        else:            
+            #SearchTweetID = '' # str型で指定 デバッグ用
+
+            # APIの秘密鍵
+            CK = os.environ['TW_CONSUMER_KEY'] # コンシューマーキー
+            CKS = os.environ['TW_CONSUMER_SECRET'] # コンシューマーシークレット
+            AT = os.environ['TW_ACCESS_TOKEN_KEY'] # アクセストークン
+            ATS = os.environ['TW_ACCESS_TOKEN_SECRET'] # アクセストークンシークレット
+        
+            main(SearchTweetID, CK, CKS, AT, ATS)
