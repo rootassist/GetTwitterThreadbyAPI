@@ -14,10 +14,10 @@ Description
 - ツイートのTwitter IDあるいはURLを指定すると、Twitter API 1.1を利用してそのツイートの返信、および引用ツイートを追跡し、結果をテキストとjsonで出力します  
 - Twitter APIで取得ツイートの制限が越えた場合には一定の待ち時間のあと取得を再開し、最終的にすべてのスレッドが取得できるまで継続します  
 - pythonは以下のバージョンで動作確認しています(動作確認はWindowsでしか行っていません)
-  - python 3.10.4
-  - pandas 1.4.2
-  - requests 2.28.1
-  - requests-oauthlib 1.3.1
+    - python 3.10.4
+    - pandas 1.4.2
+    - requests 2.28.1
+    - requests-oauthlib 1.3.1
 
 =====================
 Usage
