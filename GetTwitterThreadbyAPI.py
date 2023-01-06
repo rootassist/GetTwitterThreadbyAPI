@@ -59,6 +59,9 @@ def main(tweet_id, CK, CKS, AT, ATS):
 
     if len(data_statuses) != 0:  #取得したデータがあるなら
         TweetInfo.dic_statuses += [dict(**{'res_key': '<BaseTweet>'},**row) for row in data_statuses]
+    else:
+        print('APIから結果が返りません')
+        sys.exit(1)
 
     tweet_type= 'OriginalTweet'
 
